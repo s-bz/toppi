@@ -13,7 +13,6 @@ struct CreateListView: View {
         settings.templateType = ListTemplate.modern.rawValue
         return settings
     }()
-    @State private var showingTemplateSelector = false
     @State private var showingCustomization = false
     
     var body: some View {
@@ -31,10 +30,10 @@ struct CreateListView: View {
                         // Items input
                         itemsInputSection
                         
-                        // Template preview
-                        templatePreviewSection
+                        // Horizontal template selector
+                        templateSelectorSection
                         
-                        // Customization buttons
+                        // Customization button
                         customizationSection
                         
                         // Save button
@@ -45,9 +44,6 @@ struct CreateListView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarHidden(true)
-        }
-        .sheet(isPresented: $showingTemplateSelector) {
-            TemplateSelectionView(selectedTemplate: $currentTemplate, designSettings: $designSettings, userTitle: listTitle, userItems: listItems)
         }
         .sheet(isPresented: $showingCustomization) {
             CustomizationView(designSettings: $designSettings)
@@ -161,28 +157,86 @@ struct CreateListView: View {
         .cornerRadius(12)
     }
     
-    private var templatePreviewSection: some View {
+    private var templateSelectorSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Preview")
+            Text("Choose Template")
                 .font(.body)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
             
-            Button {
-                showingTemplateSelector = true
-                AnalyticsService.shared.track(.buttonTapped, properties: ["button_name": "template_selector"])
-            } label: {
-                ListPreviewView(
-                    title: listTitle.isEmpty ? "Your List Title" : listTitle,
-                    items: listItems.filter { !$0.isEmpty },
-                    designSettings: designSettings,
-                    template: currentTemplate
-                )
-                .frame(height: 240)
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 4)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(ListTemplate.allCases, id: \.self) { template in
+                        Button {
+                            currentTemplate = template
+                            // Update design settings when template changes
+                            var newDesignSettings = template.defaultSettings.toDesignSettings()
+                            newDesignSettings.templateType = template.rawValue
+                            designSettings = newDesignSettings
+                            
+                            AnalyticsService.shared.track(.templateSelected, properties: [
+                                "template": template.rawValue,
+                                "previous_template": currentTemplate.rawValue
+                            ])
+                        } label: {
+                            VStack(spacing: 8) {
+                                // Live preview of the template with user's content
+                                ListPreviewView(
+                                    title: listTitle.isEmpty ? "Your List Title" : listTitle,
+                                    items: listItems.filter { !$0.isEmpty }.isEmpty ? ["Sample Item 1", "Sample Item 2", "Sample Item 3"] : listItems.filter { !$0.isEmpty },
+                                    designSettings: {
+                                        var tempSettings = template.defaultSettings.toDesignSettings()
+                                        tempSettings.templateType = template.rawValue
+                                        return tempSettings
+                                    }(),
+                                    template: template
+                                )
+                                .frame(width: 160, height: 200)
+                                .cornerRadius(template.defaultSettings.cornerRadius)
+                                .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 2)
+                                .overlay(
+                                    // Selection indicator
+                                    Group {
+                                        if currentTemplate == template {
+                                            RoundedRectangle(cornerRadius: template.defaultSettings.cornerRadius)
+                                                .stroke(Color.accentColor, lineWidth: 3)
+                                                .frame(width: 160, height: 200)
+                                        }
+                                    }
+                                )
+                                .overlay(
+                                    // Checkmark indicator
+                                    Group {
+                                        if currentTemplate == template {
+                                            VStack {
+                                                HStack {
+                                                    Spacer()
+                                                    Image(systemName: "checkmark.circle.fill")
+                                                        .font(.title2)
+                                                        .foregroundColor(.accentColor)
+                                                        .background(Color.white)
+                                                        .clipShape(Circle())
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(8)
+                                        }
+                                    }
+                                )
+                                
+                                // Template name
+                                Text(template.displayName)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
             }
-            .buttonStyle(PlainButtonStyle())
         }
         .padding()
         .background(Color(.systemBackground))
@@ -190,42 +244,26 @@ struct CreateListView: View {
     }
     
     private var customizationSection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 16) {
-                Button {
-                    showingTemplateSelector = true
-                    AnalyticsService.shared.track(.buttonTapped, properties: ["button_name": "select_template"])
-                } label: {
-                    VStack(spacing: 8) {
-                        Image(systemName: "rectangle.3.offgrid")
-                            .font(.title2)
-                        Text("Template")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                }
-                
-                Button {
-                    showingCustomization = true
-                    AnalyticsService.shared.track(.buttonTapped, properties: ["button_name": "customize_design"])
-                } label: {
-                    VStack(spacing: 8) {
-                        Image(systemName: "paintbrush")
-                            .font(.title2)
-                        Text("Customize")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(12)
-                }
+        Button {
+            showingCustomization = true
+            AnalyticsService.shared.track(.buttonTapped, properties: ["button_name": "customize_design"])
+        } label: {
+            HStack {
+                Image(systemName: "paintbrush")
+                    .font(.title2)
+                Text("Customize Design")
+                    .font(.headline)
+                    .fontWeight(.semibold)
             }
+            .foregroundColor(.primary)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
         }
     }
     
