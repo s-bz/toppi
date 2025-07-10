@@ -12,7 +12,9 @@ import SwiftData
 struct toppiApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            ListItem.self,
+            DesignSettings.self,
+            StickerItem.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
